@@ -4,4 +4,3 @@ extends=buildout.cfg
 [django]
 wsgi=false
 settings=development
-

@@ -1,4 +1,4 @@
 include README.rst
 include LICENSE.txt
-recursive-include fez/djangoskel/templates *
+recursive-include wfs/djangoskel/templates *
 recursive-include docs *

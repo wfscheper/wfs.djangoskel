@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 import os
 
-version = '0.3.1'
+version = '0.3.2'
 
-setup(name='fez.djangoskel',
+setup(name='wfs.djangoskel',
       version=version,
       description="Paster templates for creating Django applications as eggs",
       long_description=open("README.rst").read() + "\n" +
@@ -25,7 +25,7 @@ setup(name='fez.djangoskel',
       url='http://www.fezconsulting.com',
       license='BSD',
       packages=find_packages(exclude=['ez_setup']),
-      namespace_packages=['fez'],
+      namespace_packages=['wfs'],
       include_package_data=True,
       zip_safe=False,
       install_requires=[
@@ -35,10 +35,10 @@ setup(name='fez.djangoskel',
       ],
       entry_points="""
       [paste.paster_create_template]
-      django_buildout=fez.djangoskel.pastertemplates:DjangoBuildoutTemplate
-      django_app=fez.djangoskel.pastertemplates:DjangoAppTemplate
-      django_project=fez.djangoskel.pastertemplates:DjangoProjectTemplate
-      django_namespace_app=fez.djangoskel.pastertemplates:DjangoNamespaceAppTemplate
-      django_namespace_project=fez.djangoskel.pastertemplates:DjangoNamespaceProjectTemplate
+      django_buildout=wfs.djangoskel.pastertemplates:DjangoBuildoutTemplate
+      django_app=wfs.djangoskel.pastertemplates:DjangoAppTemplate
+      django_project=wfs.djangoskel.pastertemplates:DjangoProjectTemplate
+      django_namespace_app=wfs.djangoskel.pastertemplates:DjangoNamespaceAppTemplate
+      django_namespace_project=wfs.djangoskel.pastertemplates:DjangoNamespaceProjectTemplate
       """,
       )
