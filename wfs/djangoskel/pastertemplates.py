@@ -27,7 +27,6 @@ class DjangoTemplate(Template):
             command._deleted_once = True
         return super(DjangoTemplate, self).check_vars(vars, command)
 
-
 class DjangoAppTemplate(DjangoTemplate):    
     _template_dir = 'templates/django_app'
     summary = 'Template for a basic Django reusable application'
@@ -42,7 +41,6 @@ def append_secret_key(vars):
     vars.append(
         var('secret_key', 'Secret key', default=default_key)
     )
-
 
 class DjangoProjectTemplate(DjangoTemplate):
     _template_dir = 'templates/django_project'
