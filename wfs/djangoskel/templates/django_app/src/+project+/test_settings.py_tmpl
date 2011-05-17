@@ -1,0 +1,23 @@
+# Settings to be used when running unit tests
+# python manage.py test --settings=${project}.test_settings $project
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
+        'NAME': '',                      # Or path to database file if using sqlite3.
+        'USER': '',                      # Not used with sqlite3.
+        'PASSWORD': '',                  # Not used with sqlite3.
+        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
+        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
+    }
+}
+
+INSTALLED_APPS = (
+    # Put any other apps that your app depends on here
+    ${repr($project)},
+)
+SITE_ID = 1
+
+# This merely needs to be present - as long as your test case specifies a
+# urls attribute, it does not need to be populated.
+ROOT_URLCONF = ''

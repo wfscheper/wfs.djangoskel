@@ -27,14 +27,13 @@ class DjangoTemplate(Template):
             command._deleted_once = True
         return super(DjangoTemplate, self).check_vars(vars, command)
 
-
 class DjangoAppTemplate(DjangoTemplate):    
     _template_dir = 'templates/django_app'
     summary = 'Template for a basic Django reusable application'
     vars = [
         var('django_version',
-            'Django version to fetch, the default is 1.0.2',
-            default='1.0.2'),
+            'Django version to fetch, the default is 1.3',
+            default='1.3'),
     ] + DjangoTemplate.vars
 
 def append_secret_key(vars):
@@ -42,7 +41,6 @@ def append_secret_key(vars):
     vars.append(
         var('secret_key', 'Secret key', default=default_key)
     )
-
 
 class DjangoProjectTemplate(DjangoTemplate):
     _template_dir = 'templates/django_project'
@@ -81,8 +79,8 @@ class DjangoBuildoutTemplate(Template):
     
     vars = [
         var('django_version',
-            'Django version to fetch, the default is 1.0.2',
-            default='1.0.2'),
+            'Django version to fetch, the default is 1.3',
+            default='1.3'),
         var('django_project_name',
             'Name of the main Django project folder',
             default='project')
