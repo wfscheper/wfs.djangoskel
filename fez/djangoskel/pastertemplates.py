@@ -33,8 +33,8 @@ class DjangoAppTemplate(DjangoTemplate):
     summary = 'Template for a basic Django reusable application'
     vars = [
         var('django_version',
-            'Django version to fetch, the default is 1.0.2',
-            default='1.0.2'),
+            'Django version to fetch, the default is 1.3',
+            default='1.3'),
     ] + DjangoTemplate.vars
 
 def append_secret_key(vars):
@@ -81,8 +81,8 @@ class DjangoBuildoutTemplate(Template):
     
     vars = [
         var('django_version',
-            'Django version to fetch, the default is 1.0.2',
-            default='1.0.2'),
+            'Django version to fetch, the default is 1.3',
+            default='1.3'),
         var('django_project_name',
             'Name of the main Django project folder',
             default='project')
