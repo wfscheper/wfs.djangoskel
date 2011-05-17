@@ -3,7 +3,7 @@ import os
 
 version = '0.3.1'
 
-setup(name='fez.djangoskel',
+setup(name='wfs.djangoskel',
       version=version,
       description="Paster templates for creating Django applications as eggs",
       long_description=open("README.rst").read() + "\n" +
