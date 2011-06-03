@@ -1,4 +1,6 @@
-wfs.djangoskel.egg-info
-/build
-/dist
+*.egg-info/
 *.pyc
+.project
+.pydevproject
+build/
+dist/
