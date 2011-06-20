@@ -1,15 +1,21 @@
 Introduction
 ============
 
-fez.djangoskel provides paster templates for creating Django
+wfs.djangoskel is a fork of the fez.djangoskel project.
+
+fez.djangoskelprovides paster templates for creating Django
 projects and applications as eggs. Five templates are currently 
 provided.
+
+This fork rewrites the django_project template to provide a django
+project that is better configured for deployment (or at least I think
+so). 
 
 
 Usage
 =====
 
-Install fez.djangoskel using easy_install. This should also install
+Install wfs.djangoskel using easy_install. This should also install
 paster as a dependency. You should then be able to see five new
 templates available::
 
@@ -88,3 +94,18 @@ Why use these templates?
   be invoked using python manage.py test --settings=project.settings)
   and test URLConfs and settings that the test client can use.
   
+Difference from fez.djangoskel templates
+========================================
+
+fez.djangoskel focuses on project deployment through python eggs, and
+does not provide any web server configuration.
+Why use these templates?
+
+- Builtin deployment via fabric, rsync and virtualenv
+
+- builtin deployment options:
+  - apache + apache mod_wsgi
+  - nginx + apache mod_wsgi
+  - nginx + gunicorn
+
+- Separate configurations for staging and production
