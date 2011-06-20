@@ -4,3 +4,7 @@
 .pydevproject
 build/
 dist/
+.installed.cfg
+bin/
+develop-eggs/
+parts/
