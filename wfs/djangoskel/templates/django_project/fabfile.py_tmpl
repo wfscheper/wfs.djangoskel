@@ -33,7 +33,7 @@ def _setup_path():
     env.root = os.path.join(env.home, env.environment)
     env.code_root = os.path.join(env.root, env.project)
     env.virtualenv_root = os.path.join(env.root, 'env', env.project)
-    env.settings = '%(project)s.settings_%(environment)s' % env
+    env.settings = '%(project)s.settings' % env
 
 
 def staging():
