@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Server Error!{% endblock %}
+{% block content %}
+<h1>Error 500!</h1><br />
+<br />
+There was a server error processing the URL:
+{{ request_path }}<br />
+{% endblock %}
