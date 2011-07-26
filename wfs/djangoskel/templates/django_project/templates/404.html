@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Page not found!{% endblock %}
+{% block content %}
+<h1>Error 404!</h1><br />
+There was no page found at the URL:<br />
+{{ request_path }}<br />
+Please review the URL and be sure that you have entered it correctly.
+{% endblock %}

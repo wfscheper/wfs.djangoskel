@@ -27,7 +27,7 @@ class DjangoTemplate(Template):
             command._deleted_once = True
         return super(DjangoTemplate, self).check_vars(vars, command)
 
-class DjangoAppTemplate(DjangoTemplate):    
+class DjangoAppTemplate(DjangoTemplate):
     _template_dir = 'templates/django_app'
     summary = 'Template for a basic Django reusable application'
     vars = [
@@ -45,7 +45,17 @@ def append_secret_key(vars):
 class DjangoProjectTemplate(DjangoTemplate):
     _template_dir = 'templates/django_project'
     summary = 'Template for a Django project'
-    
+    vars = [
+        var('user', 'User who deploys the project'),
+        var('git_repository', 'URL for git repository of site code'),
+        var('staging_domain', 'Domain name of staging site'),
+        var('staging_host', 'Hostname of staging server'),
+        var('staging_port', 'Staging server SSH port', default='22'),
+        var('production_domain', 'Domain name of production site'),
+        var('production_host', 'Hostname of production server'),
+        var('production_port', 'Production server SSH port', default='22'),
+    ]
+
     def __init__(self, name):
         append_secret_key(self.vars)
         super(DjangoProjectTemplate, self).__init__(name)
@@ -56,13 +66,13 @@ class DjangoNamespaceTemplate(DjangoTemplate):
         var('namespace_package', 'Top-level namespace package'),
         var('package', 'The name of the package contained within the namespace')
     ] + DjangoTemplate.vars
-    
-    
+
+
 class DjangoNamespaceAppTemplate(DjangoNamespaceTemplate):
     _template_dir = 'templates/django_namespace_app'
     summary = 'Template for a namespaced Django reusable application'
-    
-    
+
+
 class DjangoNamespaceProjectTemplate(DjangoNamespaceTemplate):
     _template_dir = 'templates/django_namespace_project'
     summary = 'Template for a namespaced Django project'
@@ -76,7 +86,7 @@ class DjangoBuildoutTemplate(Template):
     summary = 'A plain Django buildout'
     required_templates = []
     use_cheetah = True
-    
+
     vars = [
         var('django_version',
             'Django version to fetch, the default is 1.3',
@@ -85,7 +95,7 @@ class DjangoBuildoutTemplate(Template):
             'Name of the main Django project folder',
             default='project')
     ]
-    
+
     def post(self, command, output_dir, vars):
         print "-----------------------------------------------------------"
         print "Generation finished"
