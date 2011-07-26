@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import os
 
-version = '0.3.3a2'
+version = '0.4a1'
 
 setup(name='wfs.djangoskel',
       version=version,

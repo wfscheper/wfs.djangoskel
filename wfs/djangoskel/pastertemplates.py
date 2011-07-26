@@ -46,10 +46,12 @@ class DjangoProjectTemplate(DjangoTemplate):
     _template_dir = 'templates/django_project'
     summary = 'Template for a Django project'
     vars = [
-        var('domain_name', 'Domain Name'),
         var('user', 'User who deploys the project'),
+        var('git_repository', 'URL for git repository of site code'),
+        var('staging_domain', 'Domain name of staging site'),
         var('staging_host', 'Hostname of staging server'),
         var('staging_port', 'Staging server SSH port', default='22'),
+        var('production_domain', 'Domain name of production site'),
         var('production_host', 'Hostname of production server'),
         var('production_port', 'Production server SSH port', default='22'),
     ]

@@ -3,31 +3,11 @@ import os
 from fabric.api import *
 from fabric.contrib import files, console
 from fabric import utils
-from fabric.decorators import hosts
 
 
-RSYNC_EXCLUDE = [
-    '.DS_Store',
-    '.gitignore',
-    '.hg',
-    '.pydevproject',
-    '.git/',
-    '.gitmodules',
-    '.projects/',
-    '.ropeproject/',
-    '.settings/',
-    '*.pyc',
-    '*.example',
-    '*.db',
-    '*.swp',
-    'media/admin',
-    'fabfile.py',
-    'bootstrap.py',
-    'settings_*.py',
-]
-env.home = '/var/www'
+env.home = '/home/django'
+env.git_url = '${git_repository}'
 env.project = '${project}'
-
 
 def _setup_path():
     env.root = os.path.join(env.home, env.environment)
@@ -35,216 +15,131 @@ def _setup_path():
     env.virtualenv_root = os.path.join(env.root, 'env', env.project)
     env.settings = '%(project)s.settings' % env
 
-
 def staging():
-    """ use staging environment on remote host"""
-    env.user = '${user}'
-    env.group = 'www-data'
+    ''' use staging environment on remote host'''
     env.environment = 'staging'
+    env.site_name = '${staging_domain}'
     env.hosts = ['${user}@${staging_host}:${staging_port}']
+    env.git_branch = 'develop'
     _setup_path()
-
 
 def production():
-    """ use production environment on remote host"""
-    env.user = '${user}'
-    env.group = 'www-data'
+    ''' use production environment on remote host'''
     env.environment = 'production'
+    env.site_name = '${production_domain}'
     env.hosts = ['${user}@${production_host}:${production_port}']
+    env.git_branch = 'master'
     _setup_path()
 
-
 def bootstrap():
-    """ initialize remote host environment (virtualenv, deploy, update) """
-    require('root', provided_by=('production', 'staging'))
-    run('mkdir -p %(code_root)s' % env)
-    run('mkdir -p %s' % os.path.join(env.home, 'log'))
+    ''' initialize remote host environment (virtualenv, deploy, update) '''
+    require('code_root', provided_by=('production', 'staging'))
+    if not files.exists(env.root):
+        sudo('mkdir -p %(root)s' % env, user='django')
+    with cd(env.root):
+        sudo('git clone %(git_url)s' % env, user='django')
+    with cd(env.code_root):
+        sudo('git checkout %(git_branch)s && git submodule init && '
+             'git submodule update' % env, user='django')
     create_virtualenv()
-    deploy()
     update_requirements()
-    symlink_django()
-
 
 def create_virtualenv():
-    """ setup virtualenv on remote host """
+    ''' setup virtualenv on remote host '''
     require('virtualenv_root', provided_by=('production', 'staging'))
-    args = '--clear --distribute'
-    run('virtualenv %s %s' % (args, env.virtualenv_root))
-
+    args = '--clear --no-site-packages --distribute'
+    sudo('virtualenv %s %s' % (args, env.virtualenv_root), user='django')
 
 def deploy():
-    """ rsync code to remote host """
-    require('root', provided_by=('production', 'staging'))
+    ''' rsync code to remote host '''
+    require('code_root', provided_by=('production', 'staging'))
     if env.environment == 'production':
         if not console.confirm('Are you sure you want to deploy production?',
                                default=False):
             utils.abort('Production deployment aborted.')
-    # defaults rsync options:
-    # -thrvz
-    # -t preserve times
-    # -h output numbers in a human-readable format
-    # -r recurse into directories
-    # -v increase verbosity
-    # -z compress file data during the transfer
-    extra_opts = '--omit-dir-times'
-    rsync_project(
-        env.root,
-        exclude=RSYNC_EXCLUDE,
-        delete=True,
-        extra_opts=extra_opts,
-    )
-    touch()
-
+    with cd(env.code_root):
+        sudo('git pull && git submodule update', user='django')
+    symlink_django()
 
 def update_requirements():
-    """ update external dependencies on remote host """
+    ''' update external dependencies on remote host '''
     require('code_root', provided_by=('production', 'staging'))
     requirements = os.path.join(env.code_root, 'requirements')
-    with cd(requirements):
-        cmd = ['pip install']
-        cmd += ['-E %(virtualenv_root)s' % env]
-        cmd += ['--requirement %s' % os.path.join(requirements, 'apps.txt')]
-        run(' '.join(cmd))
-    cmd = '%(virtualenv_root)s/bin/easy_install biopython' % env
-    run(cmd)
+    cmd = ['pip install']
+    cmd += ['-E %(virtualenv_root)s' % env]
+    cmd += ['--requirement %s' % os.path.join(requirements, 'apps.txt')]
+    with cd(env.code_root):
+        sudo(' '.join(cmd), user='django')
 
+def apache_update_conf():
+    '''update apache configuration on remote host'''
+    require('code_root', provided_by=('production', 'staging'))
+    source = '/%(code_root)s/deployment/apache/%(environment)s.conf' % env
+    available = '/etc/apache2/sites-available/%(site_name)s' % env
+    enabled = '/etc/apache2/sites-enabled/%(site_name)s' % env
+    sudo('ln -ifs %s %s' % (source, available))
+    sudo('ln -ifs %s %s' % (available, enabled))
+    apache_reload()
 
-def touch():
+def apache_touch():
     """ touch wsgi file to trigger reload """
     require('code_root', provided_by=('production', 'staging'))
-    apache_dir = os.path.join(env.code_root, 'apache')
+    apache_dir = os.path.join(env.code_root, 'deployment', 'apache')
     with cd(apache_dir):
         run('touch %s.wsgi' % env.environment)
 
-
-def update_apache_conf():
-    """ upload apache configuration to remote host """
-    require('root', provided_by=('production', 'staging'))
-    source = os.path.join('apache', '%(environment)s.conf' % env)
-    dest = '/etc/apache2/sites-available/'
-    put(source, dest, mode=0644)
-    apache_reload()
-
-
-def configtest():
+def apache_configtest():
     """ test Apache configuration """
     require('root', provided_by=('production', 'staging'))
-    run('apache2ctl configtest')
-
+    sudo('apache2ctl configtest')
 
 def apache_reload():
     """ reload Apache on remote host """
     require('root', provided_by=('production', 'staging'))
-    run('sudo /etc/init.d/apache2 reload')
-
+    sudo('/etc/init.d/apache2 reload')
 
 def apache_restart():
     """ restart Apache on remote host """
     require('root', provided_by=('production', 'staging'))
-    run('sudo /etc/init.d/apache2 restart')
+    sudo('/etc/init.d/apache2 restart')
 
+def nginx_update_conf():
+    '''update nginx configuration on remote host '''
+    require('code_root', provided_by=('production', 'staging'))
+    source = '/%(code_root)s/deployment/nginx/%(environment)s.conf' % env
+    available = '/etc/nginx/sites-available/%(site_name)s' % env
+    enabled = '/etc/nginx/sites-enabled/%(site_name)s' % env
+    sudo('ln -ifs %s %s' % (source, available))
+    sudo('ln -ifs %s %s' % (available, enabled))
+    nginx_reload()
+
+def nginx_reload():
+    ''' reload nginx on remote host '''
+    require('root', provided_by=('production', 'staging'))
+    sudo('/etc/init.d/nginx reload')
+
+def nginx_restart():
+    ''' restart nginx on remote host '''
+    require('root', provided_by=('production', 'staging'))
+    sudo('/etc/init.d/nginx restart')
 
 def symlink_django():
-    """ create symbolic link so Apache can serve django admin media """
-    require('root', provided_by=('production', 'staging'))
-    admin_media = os.path.join(env.virtualenv_root,
-                               'lib/python2.6/site-packages/django/contrib/admin/media')
-    media = os.path.join(env.code_root, 'static/admin')
-    if not files.exists(media):
-        run('ln -s %s %s' % (admin_media, media))
+    ''' create symbolic link so Nginx can serve static files '''
+    require('code_root', provided_by=('production', 'staging'))
+    source = '%(code_root)s/static' % env
+    dest = '/var/www/%(environment)s/%(project)s' % env
+    with cd(env.code_root):
+        sudo('%(virtualenv_root)s/bin/python manage.py collectstatic --noinput' % env)
+    if not files.exists(dest):
+        sudo('mkdir -p %s' % dest, user='www-data')
+    if not files.exists('%s/static' % dest):
+        sudo('ln -s %s %s' % (source, dest), user='www-data')
 
-
-def reset_local_media():
-    """ Reset local media from remote host """
-    require('root', provided_by=('production', 'staging'))
-    media = os.path.join(env.code_root, 'media', 'upload')
-    local('rsync -rvaz %s@%s:%s media/' % (env.user, env.hosts[0], media))
-
-
-def rsync_project(remote_dir, local_dir=None, exclude=(), delete=False,
-                  extra_opts=''):
-    """
-    Synchronize a remote directory with the current project directory via rsync.
-
-    Where ``upload_project()`` makes use of ``scp`` to copy one's entire
-    project every time it is invoked, ``rsync_project()`` uses the ``rsync``
-    command-line utility, which only transfers files newer than those on the
-    remote end.
-
-    ``rsync_project()`` is thus a simple wrapper around ``rsync``; for
-    details on how ``rsync`` works, please see its manpage. ``rsync`` must be
-    installed on both your local and remote systems in order for this operation
-    to work correctly.
-
-    This function makes use of Fabric's ``local()`` operation, and returns the
-    output of that function call; thus it will return the stdout, if any, of
-    the resultant ``rsync`` call.
-
-    ``rsync_project()`` takes the following parameters:
-
-    * ``remote_dir``: the only required parameter, this is the path to the
-      **parent** directory on the remote server; the project directory will be
-      created inside this directory. For example, if one's project directory is
-      named ``myproject`` and one invokes ``rsync_project('/home/username/')``,
-      the resulting project directory will be ``/home/username/myproject/``.
-    * ``local_dir``: by default, ``rsync_project`` uses your current working
-      directory as the source directory; you may override this with
-      ``local_dir``, which should be a directory path.
-    * ``exclude``: optional, may be a single string, or an iterable of strings,
-      and is used to pass one or more ``--exclude`` options to ``rsync``.
-    * ``delete``: a boolean controlling whether ``rsync``'s ``--delete`` option
-      is used. If True, instructs ``rsync`` to remove remote files that no
-      longer exist locally. Defaults to False.
-    * ``extra_opts``: an optional, arbitrary string which you may use to pass
-      custom arguments or options to ``rsync``.
-
-    Furthermore, this function transparently honors Fabric's port and SSH key
-    settings. Calling this function when the current host string contains a
-    nonstandard port, or when ``env.key_filename`` is non-empty, will use the
-    specified port and/or SSH key filename(s).
-
-    For reference, the approximate ``rsync`` command-line call that is
-    constructed by this function is the following:
-
-        rsync [--delete] [--exclude exclude[0][, --exclude[1][, ...]]] \\
-            -pthrvz [extra_opts] <local_dir> <host_string>:<remote_dir>
-
-    """
-    # Turn single-string exclude into a one-item list for consistency
-    if not hasattr(exclude, '__iter__'):
-        exclude = (exclude,)
-    # Create --exclude options from exclude list
-    exclude_opts = ' --exclude "%s"' * len(exclude)
-    # Double-backslash-escape
-    exclusions = tuple([str(s).replace('"', '\\\\"') for s in exclude])
-    # Honor SSH key(s)
-    key_string = ""
-    if env.key_filename:
-        keys = env.key_filename
-        # For ease of use, coerce stringish key filename into list
-        if not isinstance(env.key_filename, (list, tuple)):
-            keys = [keys]
-        key_string = "-i " + " -i ".join(keys)
-    # Honor nonstandard port
-    port_string = ("-p %s" % env.port) if (env.port != '22') else ""
-    # RSH
-    rsh_string = ""
-    if key_string or port_string:
-        rsh_string = "--rsh='ssh %s %s'" % (port_string, key_string)
-    # Set up options part of string
-    options_map = {
-        'delete': '--delete' if delete else '',
-        'exclude': exclude_opts % exclusions,
-        'rsh': rsh_string,
-        'extra': extra_opts
-    }
-    options = "%(delete)s%(exclude)s -thrvz %(extra)s %(rsh)s" % options_map
-    # Get local directory
-    if local_dir is None:
-        local_dir = '../' + os.getcwd().split(os.sep)[-1]
-    # Create and run final command string
-    cmd = "rsync %s %s %s@%s:%s" % (options, local_dir, env.user,
-        env.host, remote_dir)
-    if output.running:
-        print("[%s] rsync_project: %s" % (env.host_string, cmd))
-    return local(cmd)
+def symlink_supervisor():
+    '''setup supervisor config'''
+    require('code_root', provided_by=('production', 'staging'))
+    source = '%(code_root)s/deployment/supervisor/%(environment)s.conf' % env
+    dest = '/etc/supervisor/conf.d/%(site_name)s.conf' % env
+    if not files.exists(dest):
+        sudo('ln -s %s %s' % (source, dest))
+        sudo('/etc/init.d/supervisor stop && /etc/init.d/supervisor start')

@@ -1,8 +1,8 @@
 import sys
 import site
 
-site.addsitedir('/var/www/staging/env/${project}/lib/python2.6/site-packages')
-sys.path.insert(0, '/var/www/staging/${project}')
+site.addsitedir('/home/django/staging/env/${project}/lib/python2.6/site-packages')
+sys.path.insert(0, '/home/django/staging/${project}')
 
 import settings
 

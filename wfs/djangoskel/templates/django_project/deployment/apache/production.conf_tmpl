@@ -1,6 +1,6 @@
 <VirtualHost *:8080>
-    ServerName www.${domain_name}
-    ServerAlias ${domain_name}
+    ServerName www.${production_domain}
+    ServerAlias ${production_domain}
 
     WSGIDaemonProcess ${project} user=www-data group=www-data threads=25
     WSGIProcessGroup ${project}
@@ -14,10 +14,10 @@
         Allow from all
     </Directory>
 
-    WSGIScriptAlias / /var/www/production/${project}/apache/production.wsgi
-
-    <Directory /var/www/production/${project}/apache>
+    <Directory /var/www/production/${project}/static>
         Order allow,deny
         Allow from all
     </Directory>
+
+    WSGIScriptAlias / /home/django/production/${project}/deployment/apache/production.wsgi
 </VirtualHost>

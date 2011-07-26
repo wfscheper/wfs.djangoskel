@@ -1,0 +1,4 @@
+django-debug-toolbar
+django-test-utils
+django-extensions
+django-annoying
