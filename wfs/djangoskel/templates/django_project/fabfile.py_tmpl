@@ -60,6 +60,8 @@ def deploy():
     with cd(env.code_root):
         sudo('git pull && git submodule update', user='django')
     symlink_django()
+    if files.exists('/etc/init.d/supervisor'):
+        symlink_supervisor()
 
 def update_requirements():
     ''' update external dependencies on remote host '''
@@ -142,4 +144,5 @@ def symlink_supervisor():
     dest = '/etc/supervisor/conf.d/%(site_name)s.conf' % env
     if not files.exists(dest):
         sudo('ln -s %s %s' % (source, dest))
-        sudo('/etc/init.d/supervisor stop && /etc/init.d/supervisor start')
+    sudo('service supervisor stop')
+    sudo('service supervisor start')
