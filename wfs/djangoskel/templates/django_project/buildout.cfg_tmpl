@@ -1,0 +1,31 @@
+[buildout]
+parts =
+    python
+    django
+    omelette
+versions = versions
+extensions = buildout.bootstrap
+eggs =
+    gunicorn
+    psycopg2==2.4.1
+    south>=0.7,<0.8
+
+[versions]
+django = 1.3
+
+[python]
+recipe = zc.recipe.egg
+interpreter = python
+eggs = \${buildout:eggs}
+
+[omelette]
+recipe = collective.recipe.omelette
+eggs = \${buildout:eggs}
+
+[django]
+recipe = djangorecipe
+project = ${project}
+settings=local_settings
+extra-paths =
+    \${buildout:directory}/${project}
+eggs = \${buildout:eggs}

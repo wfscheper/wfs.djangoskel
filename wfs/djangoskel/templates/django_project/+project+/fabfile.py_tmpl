@@ -1,0 +1,210 @@
+import os
+
+from fabric import api, utils
+from fabric.contrib import console, files
+import time
+
+
+api.env.home = '/var/django'
+api.env.git_url = '${git_repository}'
+api.env.package = '${project}'
+api.env.project = '${project}'
+
+def _setup_path():
+    api.env.root = os.path.join(api.env.home, api.env.environment)
+    api.env.code_root = os.path.join(api.env.root, api.env.package)
+    api.env.settings = '%(project)s.settings' % api.env
+
+def sudo_django(cmd):
+    api.sudo('HOME=/var/django ' + cmd, user='django')
+
+def staging():
+    ''' use staging environment on remote host'''
+    api.env.environment = 'staging'
+    api.env.site_name = '${staging_domain}'
+    api.env.hosts = ['${user}@${staging_host}']
+    api.env.git_branch = 'develop'
+    _setup_path()
+
+def production():
+    ''' use production environment on remote host'''
+    api.env.environment = 'production'
+    api.env.site_name = '${production_domain}'
+    api.env.hosts = ['${user}@${production_host}']
+    api.env.git_branch = 'master'
+    _setup_path()
+
+def bootstrap():
+    ''' initialize remote host environment '''
+    api.require('code_root', provided_by=('production', 'staging'))
+    bootstrap_user()
+    bootstrap_application()
+    bootstrap_buildout()
+    django_syncdb()
+    nginx_symlink_django()
+    if files.exists('/etc/init.d/supervisor'):
+        supervisor_update_conf()
+    deploy()
+
+def bootstrap_user():
+    '''Setup user that will own the application files and run the application
+    
+    '''
+    # check if user exists
+    api.env.warn_only = True
+    result = api.run('egrep "^django:" /etc/passwd')
+    api.env.warn_only = False
+
+    if result.failed:
+        api.sudo('adduser --system --home %(home)s --disabled-login --group django' % api.env)
+    if not files.exists('%(home)s/.ssh' % api.env, use_sudo=True):
+        sudo_django('ssh-keygen -q')
+    if not files.exists('%(home)s/.buildout' % api.env):
+        sudo_django(('mkdir -p %(home)s/.buildout/eggs; '
+                     'mkdir -p %(home)s/.buildout/dlcache; '
+                     'mkdir -p %(home)s/.buildout/extends') % api.env)
+        sudo_django('touch %(home)s/.buildout/default.cfg' % api.env)
+        default_cfg = ('[buildout]\n'
+                       'eggs-directory = %(home)s/.buildout/eggs\n'
+                       'download-cache = %(home)s/.buildout/dlcache\n'
+                       'extends-cache = %(home)s/.buildout/extends\n')
+        files.append('%(home)s/.buildout/default.cfg' % api.env,
+                     default_cfg % api.env,
+                     use_sudo=True)
+
+def bootstrap_application():
+    '''Create the application file sturcture and clone the repository
+
+    '''
+    if not files.exists(api.env.root):
+        sudo_django('mkdir -p %(root)s' % api.env)
+    with api.cd(api.env.root):
+        if not files.exists(api.env.code_root):
+            sudo_django('git clone %(git_url)s' % api.env)
+    with api.cd(api.env.code_root):
+        sudo_django('git checkout -b %(git_branch)s origin/%(git_branch)s' %
+                    api.env)
+
+def bootstrap_buildout():
+    '''download and run buildout's bootstrap.py script'''
+    api.require('code_root', provided_by=('production', 'staging'))
+    with api.cd(api.env.code_root):
+        sudo_django('python bootstrap.py')
+        sudo_django('bin/buildout')
+
+def django_syncdb():
+    '''Run django syncdb command'''
+    api.require('code_root', provided_by=('production', 'staging'))
+    with api.cd(api.env.code_root):
+        sudo_django('bin/django syncdb' % api.env)
+
+def deploy():
+    ''' rsync code to remote host '''
+    api.require('code_root', provided_by=('production', 'staging'))
+    if api.env.environment == 'production':
+        if not console.confirm('Are you sure you want to deploy production?',
+                               default=False):
+            utils.abort('Production deployment aborted.')
+    with api.cd(api.env.code_root):
+        sudo_django('git checkout %(git_branch)s' % api.env)
+        sudo_django('git pull')
+        sudo_django('git submodule update')
+        sudo_django('bin/django migrate')
+    with api.cd(api.env.code_root):
+        sudo_django('bin/django collectstatic --noinput' % api.env)
+    restart()
+
+def apache_update_conf():
+    '''update apache configuration on remote host'''
+    api.require('code_root', provided_by=('production', 'staging'))
+    source = '/%(code_root)s/deployment/apache/%(environment)s.conf' % api.env
+    available = '/etc/apache2/sites-available/%(site_name)s' % api.env
+    enabled = '/etc/apache2/sites-enabled/%(site_name)s' % api.env
+    api.sudo('ln -ifs %s %s' % (source, available))
+    api.sudo('ln -ifs %s %s' % (available, enabled))
+    apache_reload()
+
+def apache_touch():
+    """ touch wsgi file to trigger reload """
+    api.require('code_root', provided_by=('production', 'staging'))
+    apache_dir = os.path.join(api.env.code_root, 'deployment', 'apache')
+    with api.cd(apache_dir):
+        api.run('touch %s.wsgi' % api.env.environment)
+
+def apache_configtest():
+    """ test Apache configuration """
+    api.require('root', provided_by=('production', 'staging'))
+    api.sudo('apache2ctl configtest')
+
+def apache_reload():
+    """ reload Apache on remote host """
+    api.require('root', provided_by=('production', 'staging'))
+    api.sudo('/etc/init.d/apache2 reload')
+
+def apache_restart():
+    """ restart Apache on remote host """
+    api.require('root', provided_by=('production', 'staging'))
+    api.sudo('/etc/init.d/apache2 restart')
+
+def nginx_update_conf():
+    '''update nginx configuration on remote host '''
+    api.require('code_root', provided_by=('production', 'staging'))
+    source = '%(code_root)s/%(project)s/deployment/nginx/%(environment)s.conf' % api.env
+    available = '/etc/nginx/sites-available/%(site_name)s' % api.env
+    enabled = '/etc/nginx/sites-enabled/%(site_name)s' % api.env
+    api.sudo('ln -sfi %s %s' % (source, available))
+    api.sudo('ln -sfi %s %s' % (available, enabled))
+    nginx_reload()
+
+def nginx_reload():
+    ''' reload nginx on remote host '''
+    api.require('root', provided_by=('production', 'staging'))
+    api.sudo('/etc/init.d/nginx reload')
+
+def nginx_restart():
+    ''' restart nginx on remote host '''
+    api.require('root', provided_by=('production', 'staging'))
+    api.sudo('/etc/init.d/nginx restart')
+
+def nginx_symlink_django():
+    ''' create symbolic link so Nginx can serve static files '''
+    api.require('code_root', provided_by=('production', 'staging'))
+    source = '%(code_root)s/%(project)s/static' % api.env
+    dest = '/var/www/%(environment)s/%(project)s' % api.env
+    if not files.exists(dest):
+        api.sudo('mkdir -p %s/media/ProjectFiles' % dest, user='www-data')
+    if not files.exists('%s/static' % dest):
+        api.sudo('ln -s %s %s' % (source, dest), user='www-data')
+
+def supervisor_update_conf():
+    '''setup supervisor config'''
+    api.require('code_root', provided_by=('production', 'staging'))
+    source = '%(code_root)s/%(project)s/deployment/supervisor/%(environment)s.conf' % api.env
+    dest = '/etc/supervisor/conf.d/%(site_name)s.conf' % api.env
+    api.sudo('ln -sfi %s %s' % (source, dest))
+
+def supervisor_restart():
+    '''Restart supervisor'''
+    api.require('root', provided_by=('production', 'staging'))
+    api.sudo('service supervisor stop')
+    time.sleep(5)
+    api.sudo('service supervisor start')
+
+def supervisorctl(cmd, site):
+    '''Issue commands to supervisorctl'''
+    api.sudo('supervisorctl %s %s' % (cmd, site))
+
+def start():
+    '''Start the application server'''
+    api.require('site_name', provided_by=('production', 'staging'))
+    supervisorctl('start', api.env.site_name)
+
+def stop():
+    '''Stop the application server'''
+    api.require('site_name', provided_by=('production', 'staging'))
+    supervisorctl('stop', api.env.site_name)
+
+def restart():
+    '''Restart the application'''
+    api.require('site_name', provided_by=('production', 'staging'))
+    supervisorctl('restart', api.env.site_name)
